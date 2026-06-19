@@ -1,0 +1,1151 @@
+{
+  "info": {
+    "_postman_id": "agilepilot-api-v1",
+    "name": "AgilePilot API",
+    "description": "AgilePilot backend API collection.\n\n## Flow\n1. Seed superAdmin (`npm run seed`)\n2. superAdmin creates **admin user only**\n3. Admin logs in and **creates organization**\n4. Admin creates PM / teamMember users\n5. Admin creates project and assigns PM\n6. PM adds team members and promotes team lead\n\n## Auth\nProtected routes use `Authorization: Bearer {{token}}`.\nLogin requests auto-save `token`, `userId`, and `organizationId`.\n\n## Response format\n**Success:** `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n**Error:** `{ \"status\": \"error\", \"message\": \"...\", \"error\": ... }`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "token", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "organizationId", "value": "" },
+    { "key": "projectId", "value": "" },
+    { "key": "pmUserId", "value": "" },
+    { "key": "teamMemberUserId", "value": "" },
+    { "key": "milestoneId", "value": "" },
+    { "key": "taskId", "value": "" },
+    { "key": "expenseId", "value": "" },
+    { "key": "reportId", "value": "" }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{token}}", "type": "string" }]
+  },
+  "item": [
+    {
+      "name": "Recommended Flow",
+      "description": "Run these in order for a full smoke test.",
+      "item": [
+        {
+          "name": "1. Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/health"
+          }
+        },
+        {
+          "name": "2. Login (Super Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('token', json.data.token);",
+                  "  pm.environment.set('userId', json.data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{superAdminEmail}}\",\n  \"password\": \"{{superAdminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "3. Create Admin User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('userId', pm.response.json().data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Org Admin\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"orgRole\": \"admin\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "4. Login (Admin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('token', json.data.token);",
+                  "  pm.environment.set('userId', json.data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "5. Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('organizationId', json.data.organization._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"slug\": \"acme-corp\"\n}"
+            },
+            "url": "{{baseUrl}}/api/organizations"
+          }
+        },
+        {
+          "name": "6. Create Project Manager",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('pmUserId', pm.response.json().data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John PM\",\n  \"email\": \"pm@company.com\",\n  \"password\": \"PmPass@123\",\n  \"orgRole\": \"projectManager\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "7. Create Team Member",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('teamMemberUserId', pm.response.json().data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Jane Member\",\n  \"email\": \"member@company.com\",\n  \"password\": \"MemberPass@123\",\n  \"orgRole\": \"teamMember\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "8. Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('projectId', pm.response.json().data.project._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Website Redesign\",\n  \"description\": \"Company website overhaul\",\n  \"currency\": \"USD\",\n  \"projectManagerId\": \"{{pmUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects"
+          }
+        },
+        {
+          "name": "9. Login (PM)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('token', pm.response.json().data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"pm@company.com\",\n  \"password\": \"PmPass@123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "10. Add Team Member to Project",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{teamMemberUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members"
+          }
+        },
+        {
+          "name": "11. Promote Team Lead",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members/{{teamMemberUserId}}/promote-lead"
+          }
+        },
+        {
+          "name": "12. List Project Members",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members"
+          }
+        },
+        {
+          "name": "13. Create Milestone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('milestoneId', pm.response.json().data.milestone._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Phase 1 - Design\",\n  \"description\": \"Complete UI/UX design\",\n  \"dueDate\": \"2026-08-01\",\n  \"status\": \"pending\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones"
+          }
+        },
+        {
+          "name": "14. List Milestones",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones"
+          }
+        },
+        {
+          "name": "15. Update Milestone",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones/{{milestoneId}}"
+          }
+        },
+        {
+          "name": "16. Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('taskId', pm.response.json().data.task._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"title\": \"Design homepage mockup\",\n  \"description\": \"Create wireframes and mockups\",\n  \"priority\": \"high\",\n  \"assigneeId\": \"{{teamMemberUserId}}\",\n  \"estimatedHours\": 16,\n  \"hourlyRate\": 50\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks"
+          }
+        },
+        {
+          "name": "17. List Tasks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks?milestoneId={{milestoneId}}"
+          }
+        },
+        {
+          "name": "18. Update Task (PM)",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "19. Add Task Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Started working on the homepage layout.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}/comments"
+          }
+        },
+        {
+          "name": "20. Login (Team Member)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('token', pm.response.json().data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@company.com\",\n  \"password\": \"MemberPass@123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "21. Update Own Task Status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"done\",\n  \"actualHours\": 14\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "22. Login (PM) for Estimate",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  pm.environment.set('token', pm.response.json().data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"pm@company.com\",\n  \"password\": \"PmPass@123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login"
+          }
+        },
+        {
+          "name": "23. Save Cost Estimate",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"USD\",\n  \"contingencyPercent\": 10,\n  \"notes\": \"Q3 project estimate\",\n  \"lineItems\": [\n    {\n      \"category\": \"software\",\n      \"description\": \"Design tools license\",\n      \"quantity\": 1,\n      \"unitCost\": 500,\n      \"amount\": 500\n    },\n    {\n      \"category\": \"travel\",\n      \"description\": \"Client site visit\",\n      \"quantity\": 2,\n      \"unitCost\": 150,\n      \"amount\": 300\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/estimate"
+          }
+        },
+        {
+          "name": "24. Get Estimate Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/estimate/summary"
+          }
+        },
+        {
+          "name": "25. Set Project Budget",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocatedAmount\": 20000,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget"
+          }
+        },
+        {
+          "name": "26. Add Budget Expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('expenseId', pm.response.json().data.expense._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-06-01\",\n  \"category\": \"software\",\n  \"amount\": 250,\n  \"description\": \"Figma team license\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget/expenses"
+          }
+        },
+        {
+          "name": "27. Get Budget Analysis",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget/analysis"
+          }
+        },
+        {
+          "name": "28. Submit Progress Report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('reportId', pm.response.json().data.report._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodStart\": \"2026-06-01\",\n  \"periodEnd\": \"2026-06-07\",\n  \"manualNotes\": \"Completed homepage mockup. On track for phase 1.\",\n  \"milestoneId\": \"{{milestoneId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports"
+          }
+        },
+        {
+          "name": "29. List Progress Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports"
+          }
+        },
+        {
+          "name": "30. Get Progress Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "31. Export Report (PDF)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}/export?format=pdf"
+          }
+        },
+        {
+          "name": "32. Export Report (Excel)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}/export?format=excel"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "description": "Public. Verifies API is running."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('token', json.data.token);",
+                  "  pm.environment.set('userId', json.data.user._id);",
+                  "  if (json.data.user.organizationId) {",
+                  "    pm.environment.set('organizationId', json.data.user.organizationId);",
+                  "  }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"superadmin@agilepilot.com\",\n  \"password\": \"SuperAdmin@123\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Public. Returns JWT + user profile."
+          }
+        },
+        {
+          "name": "Get Me",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Any authenticated user. Returns current profile."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Organizations",
+      "item": [
+        {
+          "name": "Create Organization",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('organizationId', pm.response.json().data.organization._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Acme Corp\",\n  \"slug\": \"acme-corp\",\n  \"defaultCurrency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/organizations",
+            "description": "**Access:** `admin` without an organization yet.\n\nCreates org and links it to the logged-in admin. One org per admin.\n\n**Body:**\n- `name` (required)\n- `slug` (optional)\n- `defaultCurrency` (optional, 3 letters)"
+          }
+        },
+        {
+          "name": "Get My Organization",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/organizations/me",
+            "description": "**Access:** `admin` with an organization."
+          }
+        },
+        {
+          "name": "List All Organizations",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/organizations",
+            "description": "**Access:** `superAdmin` only. Lists every organization."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "Create Admin (superAdmin)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('userId', pm.response.json().data.user._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Org Admin\",\n  \"email\": \"admin@company.com\",\n  \"password\": \"AdminPass@123\",\n  \"orgRole\": \"admin\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users",
+            "description": "**Access:** `superAdmin` only.\n\nCreates admin **without** organization. Admin creates org after login."
+          }
+        },
+        {
+          "name": "Create User (admin)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John PM\",\n  \"email\": \"pm@company.com\",\n  \"password\": \"PmPass@123\",\n  \"orgRole\": \"projectManager\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users",
+            "description": "**Access:** `admin` (must have organization).\n\n**orgRole:** `projectManager` or `teamMember` only."
+          }
+        },
+        {
+          "name": "List Users",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users",
+            "description": "**Access:** `superAdmin` (all users), `admin` (own org only)."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"John Updated PM\"\n}"
+            },
+            "url": "{{baseUrl}}/api/users/{{userId}}"
+          }
+        },
+        {
+          "name": "Deactivate User",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/users/{{userId}}/deactivate"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Projects",
+      "item": [
+        {
+          "name": "Create Project",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('projectId', pm.response.json().data.project._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Website Redesign\",\n  \"description\": \"Company website overhaul\",\n  \"currency\": \"USD\",\n  \"status\": \"planning\",\n  \"projectManagerId\": \"{{pmUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects",
+            "description": "**Access:** `admin`\n\nCreates project with exactly one PM. Any org user can be assigned as PM."
+          }
+        },
+        {
+          "name": "List Projects",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects",
+            "description": "**Access:** `admin` (all org projects), `projectManager` (own projects), `teamMember` (member projects)."
+          }
+        },
+        {
+          "name": "Get Project",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}"
+          }
+        },
+        {
+          "name": "Update Project",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Website Redesign v2\",\n  \"status\": \"active\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}",
+            "description": "**Access:** `admin`, `projectManager` on project. Only admin can change PM via `projectManagerId`."
+          }
+        },
+        {
+          "name": "Change Project Manager",
+          "request": {
+            "method": "PATCH",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectManagerId\": \"{{pmUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/change-manager",
+            "description": "**Access:** `admin` only."
+          }
+        },
+        {
+          "name": "Delete Project",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}",
+            "description": "**Access:** `admin` only."
+          }
+        },
+        {
+          "name": "List Project Members",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead` on project."
+          }
+        },
+        {
+          "name": "Add Project Member",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{teamMemberUserId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members",
+            "description": "**Access:** `admin`, `projectManager`. Adds user as `teamMember`."
+          }
+        },
+        {
+          "name": "Remove Project Member",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members/{{teamMemberUserId}}"
+          }
+        },
+        {
+          "name": "Promote Team Lead",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members/{{teamMemberUserId}}/promote-lead",
+            "description": "**Access:** `admin`, `projectManager`. Only one team lead per project."
+          }
+        },
+        {
+          "name": "Demote Team Lead",
+          "request": {
+            "method": "PATCH",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/members/{{teamMemberUserId}}/demote-lead"
+          }
+        },
+        {
+          "name": "Create Milestone",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('milestoneId', pm.response.json().data.milestone._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Phase 1 - Design\",\n  \"description\": \"Complete UI/UX design\",\n  \"dueDate\": \"2026-08-01\",\n  \"status\": \"pending\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead` on project."
+          }
+        },
+        {
+          "name": "List Milestones",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones",
+            "description": "**Access:** all project members (admin, PM, teamLead, teamMember)."
+          }
+        },
+        {
+          "name": "Get Milestone",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones/{{milestoneId}}"
+          }
+        },
+        {
+          "name": "Update Milestone",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Phase 1 - Design (Updated)\",\n  \"status\": \"in_progress\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones/{{milestoneId}}",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead`."
+          }
+        },
+        {
+          "name": "Delete Milestone",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/milestones/{{milestoneId}}",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead`."
+          }
+        },
+        {
+          "name": "Create Task",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('taskId', pm.response.json().data.task._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"milestoneId\": \"{{milestoneId}}\",\n  \"title\": \"Design homepage mockup\",\n  \"description\": \"Create wireframes and mockups\",\n  \"priority\": \"high\",\n  \"status\": \"todo\",\n  \"assigneeId\": \"{{teamMemberUserId}}\",\n  \"estimatedHours\": 16,\n  \"hourlyRate\": 50,\n  \"dependsOn\": []\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead`.\n\n`milestoneId` required. Optional: `parentTaskId` (subtask), `dependsOn` (task ids)."
+          }
+        },
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks?milestoneId={{milestoneId}}",
+            "description": "**Access:** all project members. Optional query: `milestoneId`."
+          }
+        },
+        {
+          "name": "Get Task",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}"
+          }
+        },
+        {
+          "name": "Update Task",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"in_progress\",\n  \"priority\": \"medium\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}",
+            "description": "**Access:** `admin`, `PM`, `teamLead` (full update). `teamMember` can only update `status` and `actualHours` on assigned tasks."
+          }
+        },
+        {
+          "name": "Delete Task",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead`. Delete subtasks first."
+          }
+        },
+        {
+          "name": "Add Task Comment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Progress update on this task.\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}/comments"
+          }
+        },
+        {
+          "name": "List Task Comments",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/tasks/{{taskId}}/comments"
+          }
+        },
+        {
+          "name": "Get Cost Estimate",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/estimate",
+            "description": "**Access:** `admin`, `projectManager` only. teamLead and teamMember cannot access."
+          }
+        },
+        {
+          "name": "Save Cost Estimate",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currency\": \"USD\",\n  \"contingencyPercent\": 10,\n  \"notes\": \"Q3 project estimate\",\n  \"lineItems\": [\n    {\n      \"category\": \"software\",\n      \"description\": \"Design tools license\",\n      \"quantity\": 1,\n      \"unitCost\": 500,\n      \"amount\": 500\n    },\n    {\n      \"category\": \"materials\",\n      \"description\": \"Stock assets pack\",\n      \"quantity\": 1,\n      \"unitCost\": 200,\n      \"amount\": 200\n    }\n  ]\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/estimate",
+            "description": "**Access:** `admin`, `projectManager`.\n\nLine item categories: `labor`, `materials`, `software`, `travel`, `overhead`, `other`."
+          }
+        },
+        {
+          "name": "Get Estimate Summary",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/estimate/summary",
+            "description": "Returns labor roll-up from tasks + line items + contingency + grand total."
+          }
+        },
+        {
+          "name": "Get Budget",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget",
+            "description": "**Access:** `admin`, `projectManager` only."
+          }
+        },
+        {
+          "name": "Set Project Budget",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"allocatedAmount\": 20000,\n  \"currency\": \"USD\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget"
+          }
+        },
+        {
+          "name": "Add Budget Expense",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('expenseId', pm.response.json().data.expense._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-06-01\",\n  \"category\": \"software\",\n  \"amount\": 250,\n  \"description\": \"Figma team license\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget/expenses"
+          }
+        },
+        {
+          "name": "Remove Budget Expense",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget/expenses/{{expenseId}}"
+          }
+        },
+        {
+          "name": "Get Budget Analysis",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/budget/analysis",
+            "description": "Variance, utilization %, burn rate, estimated vs actual spend."
+          }
+        },
+        {
+          "name": "Submit Progress Report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  pm.environment.set('reportId', pm.response.json().data.report._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"periodStart\": \"2026-06-01\",\n  \"periodEnd\": \"2026-06-07\",\n  \"manualNotes\": \"Weekly progress update for the team.\",\n  \"milestoneId\": \"{{milestoneId}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports",
+            "description": "**Access:** all project members.\n\nAuto `%` computed from done/total tasks (project, milestone, or single task scope)."
+          }
+        },
+        {
+          "name": "List Progress Reports",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports",
+            "description": "**Access:** admin/PM/teamLead see all; teamMember sees own only."
+          }
+        },
+        {
+          "name": "Get Progress Report",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}"
+          }
+        },
+        {
+          "name": "Export Report (PDF)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}/export?format=pdf",
+            "description": "**Access:** `admin`, `projectManager`, `teamLead`.\n\nDownloads PDF file."
+          }
+        },
+        {
+          "name": "Export Report (Excel)",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/projects/{{projectId}}/reports/{{reportId}}/export?format=excel",
+            "description": "Downloads Excel-compatible `.xls` (SpreadsheetML) with Summary + Tasks sheets."
+          }
+        }
+      ]
+    }
+  ]
+}
