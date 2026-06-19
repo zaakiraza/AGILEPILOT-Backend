@@ -2,7 +2,7 @@
 
 This document describes every major workflow in the AgilePilot backend, who can perform each action, and how roles interact across the system.
 
-**Base URL:** `http://localhost:8080`  
+**Base URL:** `https://agilepilot-backend.vercel.app`  
 **API prefix:** `/api`  
 **Auth:** JWT Bearer token in `Authorization: Bearer <token>` header (except login and health check).
 
@@ -515,7 +515,7 @@ Returns:
 
 ```http
 GET /api/projects HTTP/1.1
-Host: localhost:8080
+Host: agilepilot-backend.vercel.app
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 

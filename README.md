@@ -2,6 +2,8 @@
 
 REST API for **AgilePilot** — a web-based project management platform with role-based access control, milestones, tasks, cost estimation, budget tracking, progress reports, and PDF/Excel export.
 
+**Live API:** `https://agilepilot-backend.vercel.app`
+
 ## Tech stack
 
 | Layer | Technology |
@@ -66,12 +68,12 @@ Creates the first `superAdmin` user. Run once per fresh database.
 npm start
 ```
 
-Server runs at `http://localhost:8080` with file watching enabled (`node --watch`).
+Server runs at `https://agilepilot-backend.vercel.app` when deployed. For local development, `npm start` uses `PORT` from `.env` (default `8080`) with file watching enabled (`node --watch`).
 
 ### 5. Verify
 
 ```bash
-curl http://localhost:8080/health
+curl https://agilepilot-backend.vercel.app/health
 ```
 
 Expected response:
@@ -209,7 +211,7 @@ Import these files for API testing:
 
 The collection includes a **Recommended Flow** (32 steps) that exercises the full API end-to-end.
 
-Set `baseUrl` to `http://localhost:8080` and run login requests first to populate the `token` variable.
+Set `baseUrl` to `https://agilepilot-backend.vercel.app` and run login requests first to populate the `token` variable.
 
 ## Scripts
 
