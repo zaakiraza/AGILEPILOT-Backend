@@ -14,6 +14,7 @@ REST API for **AgilePilot** — a web-based project management platform with rol
 | Validation | Zod |
 | Auth | JWT (custom implementation) |
 | Password hashing | Node.js `crypto.scrypt` |
+| Email OTP | Nodemailer (SMTP) |
 
 ## Prerequisites
 
@@ -43,6 +44,17 @@ JWT_SECRET=your-long-random-secret
 SEED_SUPER_ADMIN_NAME=Super Admin
 SEED_SUPER_ADMIN_EMAIL=superadmin@example.com
 SEED_SUPER_ADMIN_PASSWORD=change-me-123
+
+# Email OTP (required for user verification emails)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM="AgilePilot" <your-email@gmail.com>
+
+# Optional: return OTP in create-user response for Postman/testing (never in production)
+DEV_EXPOSE_OTP=true
 ```
 
 | Variable | Required | Description |
@@ -51,8 +63,12 @@ SEED_SUPER_ADMIN_PASSWORD=change-me-123
 | `JWT_SECRET` | Yes | Secret for signing JWT tokens |
 | `PORT` | No | Server port (default: `8080`) |
 | `SEED_SUPER_ADMIN_*` | For seed | Credentials for the initial super admin |
+| `SMTP_*` | For email OTP | SMTP settings to send verification codes |
+| `DEV_EXPOSE_OTP` | No | If `true`, includes `devOtp` in create-user response when mail is not configured |
 
 > Use a direct `mongodb://` URI if `mongodb+srv` DNS lookup fails on your network.
+>
+> If SMTP is not configured, OTPs are logged to the server console instead of being emailed.
 
 ### 3. Seed the super admin
 
@@ -90,7 +106,7 @@ Most endpoints require a JWT in the request header:
 Authorization: Bearer <token>
 ```
 
-Obtain a token via login:
+Obtain a token via login (email must be verified first — see below):
 
 ```http
 POST /api/auth/login
@@ -102,13 +118,42 @@ Content-Type: application/json
 }
 ```
 
+### Email OTP verification
+
+When **superAdmin** or **admin** creates a user via `POST /api/users`, the new account has `isEmailVerified: false` and a **6-digit OTP** is sent to their email. The user **cannot log in** until verified.
+
+```http
+POST /api/auth/verify-email
+Content-Type: application/json
+
+{
+  "email": "user@example.com",
+  "otp": "123456"
+}
+```
+
+Resend a code (60-second cooldown):
+
+```http
+POST /api/auth/resend-otp
+Content-Type: application/json
+
+{
+  "email": "user@example.com"
+}
+```
+
+- Seeded **superAdmin** is pre-verified (no OTP).
+- OTP expires in **10 minutes**.
+- Max **5** failed verification attempts per code.
+
 ## API overview
 
 Base path: `/api`
 
 | Resource | Prefix | Description |
 |----------|--------|-------------|
-| Auth | `/api/auth` | Login, current user profile |
+| Auth | `/api/auth` | Login, verify email, resend OTP, profile |
 | Users | `/api/users` | User CRUD (superAdmin / admin) |
 | Organizations | `/api/organizations` | Create and view organizations |
 | Projects | `/api/projects` | Projects and nested resources |
@@ -152,10 +197,10 @@ Errors:
 ```
 npm run seed
   → superAdmin login
-  → create admin user
+  → create admin user → verify email (OTP)
   → admin login
   → create organization
-  → create projectManager + teamMember users
+  → create projectManager + teamMember users → verify each email
   → create project (assign PM)
   → add members → milestones → tasks → estimates → budget → reports
 ```
@@ -223,6 +268,7 @@ Set `baseUrl` to `https://agilepilot-backend.vercel.app` and run login requests 
 ## Features
 
 - JWT authentication with org-scoped RBAC
+- Email OTP verification for newly created users
 - Multi-tenant ready (organization-scoped data)
 - Projects with PM assignment and member management
 - Milestones and tasks (subtasks, dependencies, comments)

@@ -4,16 +4,31 @@ import dotenv from "dotenv";
 import routers from "./routes/Router.js";
 import connection from "./utils/DB.js";
 import errorHandler from "./middleware/errorHandler.js";
+import { isMailConfigured } from "./utils/mailer.js";
 
 dotenv.config();
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+if (process.env.NODE_ENV !== "production") {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl}`);
+    next();
+  });
+}
+
 connection();
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", message: "AgilePilot API is running" });
+  res.json({
+    status: "ok",
+    message: "AgilePilot API is running",
+    host: "local",
+    mailConfigured: isMailConfigured(),
+    devExposeOtp: process.env.DEV_EXPOSE_OTP === "true",
+  });
 });
 
 app.use("/api", routers);

@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "agilepilot-api-v1",
     "name": "AgilePilot API",
-    "description": "AgilePilot backend API collection.\n\n## Flow\n1. Seed superAdmin (`npm run seed`)\n2. superAdmin creates **admin user only**\n3. Admin logs in and **creates organization**\n4. Admin creates PM / teamMember users\n5. Admin creates project and assigns PM\n6. PM adds team members and promotes team lead\n\n## Auth\nProtected routes use `Authorization: Bearer {{token}}`.\nLogin requests auto-save `token`, `userId`, and `organizationId`.\n\n## Response format\n**Success:** `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n**Error:** `{ \"status\": \"error\", \"message\": \"...\", \"error\": ... }`",
+    "description": "AgilePilot backend API collection.\n\n## Flow\n1. Seed superAdmin (`npm run seed`)\n2. superAdmin creates **admin user only** → OTP emailed\n3. **Verify email** with OTP before login\n4. Admin logs in and **creates organization**\n5. Admin creates PM / teamMember users (each needs OTP verification)\n6. Admin creates project and assigns PM\n7. PM adds team members and promotes team lead\n\n## Email OTP\nNew users created via `POST /api/users` must verify email before login.\nSet `DEV_EXPOSE_OTP=true` on the server to return `devOtp` in the create-user response (testing only).\nWithout SMTP, OTP is logged to the server console.\n\n## Auth\nProtected routes use `Authorization: Bearer {{token}}`.\nLogin requests auto-save `token`, `userId`, and `organizationId`.\n\n## Response format\n**Success:** `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n**Error:** `{ \"status\": \"error\", \"message\": \"...\", \"error\": ... }`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -16,7 +16,8 @@
     { "key": "milestoneId", "value": "" },
     { "key": "taskId", "value": "" },
     { "key": "expenseId", "value": "" },
-    { "key": "reportId", "value": "" }
+    { "key": "reportId", "value": "" },
+    { "key": "emailOtp", "value": "" }
   ],
   "auth": {
     "type": "bearer",
@@ -71,7 +72,11 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('userId', pm.response.json().data.user._id);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('userId', json.data.user._id);",
+                  "  if (json.data.user.devOtp) {",
+                  "    pm.environment.set('emailOtp', json.data.user.devOtp);",
+                  "  }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -86,6 +91,19 @@
               "raw": "{\n  \"name\": \"Org Admin\",\n  \"email\": \"{{adminEmail}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"orgRole\": \"admin\"\n}"
             },
             "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "3b. Verify Admin Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"otp\": \"{{emailOtp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/verify-email"
           }
         },
         {
@@ -150,7 +168,11 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('pmUserId', pm.response.json().data.user._id);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('pmUserId', json.data.user._id);",
+                  "  if (json.data.user.devOtp) {",
+                  "    pm.environment.set('emailOtp', json.data.user.devOtp);",
+                  "  }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -168,6 +190,19 @@
           }
         },
         {
+          "name": "6b. Verify PM Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"pm@company.com\",\n  \"otp\": \"{{emailOtp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/verify-email"
+          }
+        },
+        {
           "name": "7. Create Team Member",
           "event": [
             {
@@ -175,7 +210,11 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('teamMemberUserId', pm.response.json().data.user._id);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('teamMemberUserId', json.data.user._id);",
+                  "  if (json.data.user.devOtp) {",
+                  "    pm.environment.set('emailOtp', json.data.user.devOtp);",
+                  "  }",
                   "}"
                 ],
                 "type": "text/javascript"
@@ -190,6 +229,19 @@
               "raw": "{\n  \"name\": \"Jane Member\",\n  \"email\": \"member@company.com\",\n  \"password\": \"MemberPass@123\",\n  \"orgRole\": \"teamMember\"\n}"
             },
             "url": "{{baseUrl}}/api/users"
+          }
+        },
+        {
+          "name": "7b. Verify Team Member Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"member@company.com\",\n  \"otp\": \"{{emailOtp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/verify-email"
           }
         },
         {
@@ -607,6 +659,34 @@
             "url": "{{baseUrl}}/api/auth/me",
             "description": "Any authenticated user. Returns current profile."
           }
+        },
+        {
+          "name": "Verify Email",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\",\n  \"otp\": \"{{emailOtp}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/verify-email",
+            "description": "Public. Verifies a new user's email with the 6-digit OTP sent after `POST /api/users`. Required before first login."
+          }
+        },
+        {
+          "name": "Resend OTP",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{adminEmail}}\"\n}"
+            },
+            "url": "{{baseUrl}}/api/auth/resend-otp",
+            "description": "Public. Sends a new OTP if the account exists and is unverified. 60s cooldown between requests."
+          }
         }
       ]
     },
@@ -668,7 +748,11 @@
               "script": {
                 "exec": [
                   "if (pm.response.code === 201) {",
-                  "  pm.environment.set('userId', pm.response.json().data.user._id);",
+                  "  const json = pm.response.json();",
+                  "  pm.environment.set('userId', json.data.user._id);",
+                  "  if (json.data.user.devOtp) {",
+                  "    pm.environment.set('emailOtp', json.data.user.devOtp);",
+                  "  }",
                   "}"
                 ],
                 "type": "text/javascript"

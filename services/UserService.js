@@ -3,6 +3,7 @@ import OrganizationRepository from "../repositories/OrganizationRepository.js";
 import UserRepository from "../repositories/UserRepository.js";
 import ApiError from "../utils/ApiError.js";
 import AuthService from "./AuthService.js";
+import EmailVerificationService from "./EmailVerificationService.js";
 
 class UserService {
   assertAdminHasOrganization(actor) {
@@ -68,9 +69,16 @@ class UserService {
         passwordHash,
         orgRole: ORG_ROLES.ADMIN,
         organizationId: null,
+        isEmailVerified: false,
       });
 
-      return user.toSafeObject();
+      const verification = await EmailVerificationService.issueAndSendOtp(
+        user._id,
+        user.email,
+        user.name
+      );
+
+      return { ...user.toSafeObject(), ...verification };
     }
 
     this.assertAdminHasOrganization(actor);
@@ -87,9 +95,16 @@ class UserService {
       passwordHash,
       orgRole,
       organizationId: actor.organizationId,
+      isEmailVerified: false,
     });
 
-    return user.toSafeObject();
+    const verification = await EmailVerificationService.issueAndSendOtp(
+      user._id,
+      user.email,
+      user.name
+    );
+
+    return { ...user.toSafeObject(), ...verification };
   }
 
   async listUsers(actor) {
@@ -138,6 +153,7 @@ class UserService {
       if (emailTaken) {
         throw new ApiError(409, "Email already in use");
       }
+      updates.isEmailVerified = false;
     }
 
     if (updates.password) {
@@ -146,6 +162,14 @@ class UserService {
     }
 
     const updated = await UserRepository.updateById(userId, updates);
+
+    if (updates.email && updates.email !== user.email) {
+      await EmailVerificationService.issueAndSendOtp(
+        updated._id,
+        updated.email,
+        updated.name
+      );
+    }
 
     return updated.toSafeObject();
   }

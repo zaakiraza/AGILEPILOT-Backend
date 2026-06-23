@@ -11,4 +11,19 @@ export const loginSchema = z.object({
   }),
 });
 
+export const verifyEmailSchema = z.object({
+  body: z.object({
+    email: z.string().email("Invalid email address"),
+    otp: z
+      .string()
+      .regex(/^\d{6}$/, "OTP must be a 6-digit code"),
+  }),
+});
+
+export const resendOtpSchema = z.object({
+  body: z.object({
+    email: z.string().email("Invalid email address"),
+  }),
+});
+
 export { objectId };

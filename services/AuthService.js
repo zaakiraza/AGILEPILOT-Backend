@@ -51,6 +51,13 @@ class AuthService {
       throw new ApiError(401, "Invalid email or password");
     }
 
+    if (user.isEmailVerified === false) {
+      throw new ApiError(
+        403,
+        "Email not verified. Check your inbox for the OTP or request a new code at POST /api/auth/resend-otp"
+      );
+    }
+
     const isMatch = await this.comparePassword(password, user.passwordHash);
 
     if (!isMatch) {
@@ -90,6 +97,7 @@ class AuthService {
       passwordHash,
       orgRole: ORG_ROLES.SUPER_ADMIN,
       organizationId: null,
+      isEmailVerified: true,
     });
 
     return user.toSafeObject();

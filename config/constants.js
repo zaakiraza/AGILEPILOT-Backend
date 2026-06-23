@@ -1,5 +1,10 @@
 export const JWT_EXPIRES_IN = "7d";
 
+export const OTP_LENGTH = 6;
+export const OTP_EXPIRES_MINUTES = 10;
+export const OTP_RESEND_COOLDOWN_SECONDS = 60;
+export const OTP_MAX_ATTEMPTS = 5;
+
 export const PROJECT_STATUS = {
   PLANNING: "planning",
   ACTIVE: "active",

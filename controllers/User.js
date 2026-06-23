@@ -5,7 +5,12 @@ class UserController {
   async createUser(req, res, next) {
     try {
       const user = await UserService.createUser(req.user, req.validated.body);
-      return ResponseHandler.success(res, { user }, "User created successfully", 201);
+      return ResponseHandler.success(
+        res,
+        { user },
+        "User created. Verification OTP sent to email.",
+        201
+      );
     } catch (error) {
       next(error);
     }

@@ -66,10 +66,12 @@ This is the intended setup order for a new deployment.
 ```
 Step 1  npm run seed                    → Create superAdmin (from .env)
 Step 2  POST /api/auth/login            → superAdmin logs in
-Step 3  POST /api/users                 → superAdmin creates admin (no org yet)
+Step 3  POST /api/users                 → superAdmin creates admin (OTP sent)
+Step 3b POST /api/auth/verify-email     → admin verifies email with OTP
 Step 4  POST /api/auth/login            → admin logs in
 Step 5  POST /api/organizations         → admin creates organization (linked to admin)
-Step 6  POST /api/users                 → admin creates projectManager + teamMember users
+Step 6  POST /api/users                 → admin creates projectManager + teamMember (OTP each)
+Step 6b POST /api/auth/verify-email     → verify PM and teamMember emails
 Step 7  POST /api/projects              → admin creates project with projectManagerId
 Step 8  POST /api/projects/:id/members  → admin/PM adds team members
 Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
@@ -79,6 +81,7 @@ Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 
 | Actor | Requirement before next step |
 |-------|------------------------------|
+| New user (admin, PM, teamMember) | Must verify email via OTP before login |
 | `admin` | Must create organization before managing users or projects |
 | `projectManager` | Must be assigned to a project by admin |
 | `teamMember` | Must be added as a project member |
@@ -92,15 +95,34 @@ Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 
 | Method | Path | Auth | Who |
 |--------|------|------|-----|
-| `POST` | `/api/auth/login` | None | Anyone with valid credentials |
+| `POST` | `/api/auth/login` | None | Verified users with valid credentials |
+| `POST` | `/api/auth/verify-email` | None | New users with valid OTP |
+| `POST` | `/api/auth/resend-otp` | None | Anyone (generic response if account unverified) |
 | `GET` | `/api/auth/me` | JWT | Any authenticated active user |
 | `GET` | `/health` | None | Public health check |
+
+### Flow: User created → email verification
+
+Applies when **superAdmin** creates an `admin`, or **admin** creates a `projectManager` / `teamMember` via `POST /api/users`.
+
+1. User is created with `isEmailVerified: false`.
+2. Server generates a 6-digit OTP (10-minute expiry) and emails it via SMTP.
+3. User calls `POST /api/auth/verify-email` with `{ email, otp }`.
+4. On success, `isEmailVerified` is set to `true` and the user can log in.
+
+**Resend:** `POST /api/auth/resend-otp` with `{ email }` — 60-second cooldown between sends.
+
+**Exceptions:** Seeded `superAdmin` is created with `isEmailVerified: true` (no OTP).
+
+**PM note:** Project managers do not create user accounts in v1. They add existing org users to projects via `POST /api/projects/:id/members`. OTP applies only at account creation time.
 
 ### Flow: Login
 
 1. Client sends `email` + `password`.
-2. Server finds user, checks `isActive`, verifies password hash.
-3. Server returns JWT + safe user object (no password).
+2. Server finds user, checks `isActive` and `isEmailVerified`.
+3. If email is not verified → `403` with message to verify OTP.
+4. Server verifies password hash.
+5. Server returns JWT + safe user object (no password).
 
 ### Flow: Get profile
 
@@ -111,8 +133,9 @@ Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 ### Access rules
 
 - Inactive users cannot log in.
+- Unverified users (`isEmailVerified: false`) cannot log in.
 - Invalid credentials return `401` (generic message).
-- All routes under `/api/users`, `/api/organizations`, `/api/projects` require JWT except `POST /api/auth/login`.
+- All routes under `/api/users`, `/api/organizations`, `/api/projects` require JWT except public auth routes (`login`, `verify-email`, `resend-otp`).
 
 ---
 
@@ -148,13 +171,17 @@ Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 
 1. superAdmin logs in.
 2. `POST /api/users` with `{ name, email, password, orgRole: "admin" }`.
-3. New admin has no organization until they create one.
+3. OTP is sent to the admin's email.
+4. Admin verifies via `POST /api/auth/verify-email` before first login.
+5. New admin has no organization until they create one.
 
 ### Flow: admin creates org users
 
 1. Admin must have created organization (`organizationId` set).
 2. `POST /api/users` with `orgRole: "projectManager"` or `"teamMember"`.
-3. User is created inside admin's organization.
+3. OTP is sent to the new user's email.
+4. User verifies email, then can log in.
+5. User is created inside admin's organization.
 
 ### Deactivation rules
 
