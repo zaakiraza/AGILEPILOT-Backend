@@ -11,6 +11,68 @@ class ProjectService {
     }
   }
 
+  async syncLegacyProjectManager(project) {
+    const existing = await ProjectMemberRepository.findProjectManager(project._id);
+    if (existing) return existing;
+
+    const legacyId =
+      project.projectManagerId?._id?.toString() ??
+      project.projectManagerId?.toString();
+
+    if (!legacyId) return null;
+
+    const member = await ProjectMemberRepository.create({
+      projectId: project._id,
+      userId: legacyId,
+      projectRole: PROJECT_ROLES.PROJECT_MANAGER,
+    });
+
+    await ProjectRepository.updateById(project._id, {
+      $unset: { projectManagerId: 1 },
+    });
+
+    return ProjectMemberRepository.findByIdPopulated(member._id);
+  }
+
+  async attachProjectManager(project) {
+    if (!project) return null;
+
+    await this.syncLegacyProjectManager(project);
+
+    const pmRecord = await ProjectMemberRepository.findProjectManager(
+      project._id
+    );
+    const plain = project.toObject ? project.toObject() : { ...project };
+    plain.projectManagerId = pmRecord?.userId ?? null;
+    delete plain.projectManagerId_legacy;
+    return plain;
+  }
+
+  async attachProjectManagers(projects) {
+    if (!projects.length) return [];
+
+    const ids = projects.map((p) => p._id);
+    const pmRecords = await ProjectMemberRepository.findProjectManagersByProjectIds(
+      ids
+    );
+    const pmByProject = new Map(
+      pmRecords.map((m) => [m.projectId.toString(), m.userId])
+    );
+
+    return Promise.all(
+      projects.map(async (project) => {
+        let pmUser = pmByProject.get(project._id.toString());
+        if (!pmUser && project.projectManagerId) {
+          const synced = await this.syncLegacyProjectManager(project);
+          pmUser = synced?.userId ?? null;
+        }
+        const plain = project.toObject ? project.toObject() : { ...project };
+        plain.projectManagerId = pmUser ?? null;
+        return plain;
+      })
+    );
+  }
+
   async resolveProjectRole(actor, project) {
     if (actor.orgRole === ORG_ROLES.ADMIN) {
       if (
@@ -19,11 +81,6 @@ class ProjectService {
         return "admin";
       }
       throw new ApiError(403, "You do not have access to this project");
-    }
-
-    if (project.projectManagerId._id?.toString() === actor._id.toString() ||
-        project.projectManagerId.toString() === actor._id.toString()) {
-      return PROJECT_ROLES.PROJECT_MANAGER;
     }
 
     const membership = await ProjectMemberRepository.findByProjectAndUser(
@@ -39,13 +96,13 @@ class ProjectService {
   }
 
   async populateProject(projectId) {
-    return ProjectRepository.model
-      .findById(projectId)
-      .populate("projectManagerId", "name email orgRole");
+    const project = await ProjectRepository.findById(projectId);
+    if (!project) return null;
+    return this.attachProjectManager(project);
   }
 
   async assertProjectAccess(actor, projectId, allowedRoles = []) {
-    const project = await this.populateProject(projectId);
+    const project = await ProjectRepository.findById(projectId);
 
     if (!project) {
       throw new ApiError(404, "Project not found");
@@ -69,18 +126,87 @@ class ProjectService {
     return { project, projectRole };
   }
 
-  async validateProjectManager(organizationId, projectManagerId) {
-    const pm = await UserRepository.findById(projectManagerId);
+  async validateAssignableUser(organizationId, userId) {
+    const user = await UserRepository.findById(userId);
 
-    if (!pm || !pm.isActive) {
-      throw new ApiError(404, "Project manager user not found");
+    if (!user || !user.isActive) {
+      throw new ApiError(404, "User not found");
     }
 
-    if (pm.organizationId?.toString() !== organizationId.toString()) {
-      throw new ApiError(400, "Project manager must belong to the same organization");
+    if (
+      user.orgRole === ORG_ROLES.ADMIN ||
+      user.orgRole === ORG_ROLES.SUPER_ADMIN
+    ) {
+      throw new ApiError(400, "Admin accounts cannot be assigned to projects");
     }
 
-    return pm;
+    const assignableRoles = [
+      ORG_ROLES.MEMBER,
+      "teamMember",
+      "projectManager",
+    ];
+
+    if (!assignableRoles.includes(user.orgRole)) {
+      throw new ApiError(400, "User cannot be assigned to projects");
+    }
+
+    if (user.organizationId?.toString() !== organizationId.toString()) {
+      throw new ApiError(400, "User must belong to the same organization");
+    }
+
+    return user;
+  }
+
+  async assignProjectManager(projectId, organizationId, newProjectManagerId) {
+    const project = await ProjectRepository.findById(projectId);
+
+    if (!project) {
+      throw new ApiError(404, "Project not found");
+    }
+
+    if (project.organizationId.toString() !== organizationId.toString()) {
+      throw new ApiError(403, "You do not have access to this project");
+    }
+
+    await this.validateAssignableUser(organizationId, newProjectManagerId);
+
+    const currentPm = await ProjectMemberRepository.findProjectManager(projectId);
+
+    if (
+      currentPm &&
+      currentPm.userId._id?.toString() === newProjectManagerId.toString()
+    ) {
+      throw new ApiError(400, "This user is already the project manager for this project");
+    }
+
+    if (currentPm) {
+      await ProjectMemberRepository.updateById(currentPm._id, {
+        projectRole: PROJECT_ROLES.TEAM_MEMBER,
+      });
+    }
+
+    const existing = await ProjectMemberRepository.findByProjectAndUser(
+      projectId,
+      newProjectManagerId
+    );
+
+    if (existing) {
+      await ProjectMemberRepository.updateById(existing._id, {
+        projectRole: PROJECT_ROLES.PROJECT_MANAGER,
+      });
+    } else {
+      await ProjectMemberRepository.create({
+        projectId,
+        userId: newProjectManagerId,
+        projectRole: PROJECT_ROLES.PROJECT_MANAGER,
+      });
+    }
+
+    await ProjectRepository.updateById(projectId, {
+      $unset: { projectManagerId: 1 },
+    });
+
+    return this.populateProject(projectId);
   }
 
   async createProject(actor, data) {
@@ -100,7 +226,7 @@ class ProjectService {
       projectManagerId,
     } = data;
 
-    await this.validateProjectManager(actor.organizationId, projectManagerId);
+    await this.validateAssignableUser(actor.organizationId, projectManagerId);
 
     const project = await ProjectRepository.create({
       organizationId: actor.organizationId,
@@ -110,8 +236,13 @@ class ProjectService {
       currency,
       startDate,
       endDate,
-      projectManagerId,
       createdBy: actor._id,
+    });
+
+    await ProjectMemberRepository.create({
+      projectId: project._id,
+      userId: projectManagerId,
+      projectRole: PROJECT_ROLES.PROJECT_MANAGER,
     });
 
     return this.populateProject(project._id);
@@ -120,33 +251,29 @@ class ProjectService {
   async listProjects(actor) {
     if (actor.orgRole === ORG_ROLES.ADMIN) {
       this.assertAdminHasOrganization(actor);
-      return ProjectRepository.findByOrg(actor.organizationId);
+      const projects = await ProjectRepository.findByOrg(actor.organizationId);
+      return this.attachProjectManagers(projects);
     }
 
-    if (actor.orgRole === ORG_ROLES.PROJECT_MANAGER) {
-      return ProjectRepository.findByOrg(actor.organizationId, {
-        projectManagerId: actor._id,
-      });
+    if (!actor.organizationId) {
+      throw new ApiError(403, "You do not have permission to list projects");
     }
 
-    if (actor.orgRole === ORG_ROLES.TEAM_MEMBER) {
-      const projectIds = await ProjectMemberRepository.findProjectsForUser(
-        actor._id
-      );
+    const projectIds = await ProjectMemberRepository.findProjectsForUser(
+      actor._id
+    );
 
-      if (!projectIds.length) {
-        return [];
-      }
-
-      return ProjectRepository.findByIds(projectIds);
+    if (!projectIds.length) {
+      return [];
     }
 
-    throw new ApiError(403, "You do not have permission to list projects");
+    const projects = await ProjectRepository.findByIds(projectIds);
+    return this.attachProjectManagers(projects);
   }
 
   async getProject(actor, projectId) {
     const { project } = await this.assertProjectAccess(actor, projectId);
-    return project;
+    return this.attachProjectManager(project);
   }
 
   async updateProject(actor, projectId, updates) {
@@ -161,14 +288,22 @@ class ProjectService {
     }
 
     if (updates.projectManagerId) {
-      await this.validateProjectManager(
+      const updated = await this.assignProjectManager(
+        projectId,
         project.organizationId,
         updates.projectManagerId
       );
+
+      const { projectManagerId: _pm, ...rest } = updates;
+      if (Object.keys(rest).length === 0) {
+        return updated;
+      }
+
+      const final = await ProjectRepository.updateById(projectId, rest);
+      return this.populateProject(final._id);
     }
 
     const updated = await ProjectRepository.updateById(projectId, updates);
-
     return this.populateProject(updated._id);
   }
 
@@ -188,13 +323,11 @@ class ProjectService {
       throw new ApiError(404, "Project not found");
     }
 
-    await this.validateProjectManager(actor.organizationId, projectManagerId);
-
-    const updated = await ProjectRepository.updateById(projectId, {
-      projectManagerId,
-    });
-
-    return this.populateProject(updated._id);
+    return this.assignProjectManager(
+      projectId,
+      actor.organizationId,
+      projectManagerId
+    );
   }
 
   async deleteProject(actor, projectId) {
@@ -226,35 +359,30 @@ class ProjectService {
       PROJECT_ROLES.TEAM_LEAD,
     ]);
 
+    await this.syncLegacyProjectManager(
+      await ProjectRepository.findById(projectId)
+    );
+
     const members = await ProjectMemberRepository.findByProject(projectId);
-    const project = await this.populateProject(projectId);
+    const pm = members.find(
+      (m) => m.projectRole === PROJECT_ROLES.PROJECT_MANAGER
+    );
 
     return {
-      projectManager: project.projectManagerId,
-      members,
+      projectManager: pm?.userId ?? null,
+      members: members.filter(
+        (m) => m.projectRole !== PROJECT_ROLES.PROJECT_MANAGER
+      ),
     };
   }
 
   async addMember(actor, projectId, userId) {
-    const { project } = await this.assertProjectAccess(actor, projectId, [
-      "admin",
-      PROJECT_ROLES.PROJECT_MANAGER,
-    ]);
+    const { project } = await this.assertProjectAccess(actor, projectId, ["admin"]);
 
-    if (project.projectManagerId._id?.toString() === userId ||
-        project.projectManagerId.toString() === userId) {
-      throw new ApiError(400, "Project manager is already assigned to this project");
-    }
-
-    const user = await UserRepository.findById(userId);
-
-    if (!user || !user.isActive) {
-      throw new ApiError(404, "User not found");
-    }
-
-    if (user.organizationId?.toString() !== project.organizationId.toString()) {
-      throw new ApiError(400, "User must belong to the same organization");
-    }
+    const user = await this.validateAssignableUser(
+      project.organizationId,
+      userId
+    );
 
     const existing = await ProjectMemberRepository.findByProjectAndUser(
       projectId,
@@ -262,6 +390,9 @@ class ProjectService {
     );
 
     if (existing) {
+      if (existing.projectRole === PROJECT_ROLES.PROJECT_MANAGER) {
+        throw new ApiError(400, "User is already the project manager on this project");
+      }
       throw new ApiError(409, "User is already a member of this project");
     }
 
@@ -275,10 +406,7 @@ class ProjectService {
   }
 
   async removeMember(actor, projectId, userId) {
-    await this.assertProjectAccess(actor, projectId, [
-      "admin",
-      PROJECT_ROLES.PROJECT_MANAGER,
-    ]);
+    await this.assertProjectAccess(actor, projectId, ["admin"]);
 
     const membership = await ProjectMemberRepository.findByProjectAndUser(
       projectId,
@@ -289,16 +417,20 @@ class ProjectService {
       throw new ApiError(404, "Project member not found");
     }
 
+    if (membership.projectRole === PROJECT_ROLES.PROJECT_MANAGER) {
+      throw new ApiError(
+        400,
+        "Cannot remove the project manager. Assign a new project manager first."
+      );
+    }
+
     await ProjectMemberRepository.deleteById(membership._id);
 
     return { removed: true };
   }
 
   async promoteToTeamLead(actor, projectId, userId) {
-    await this.assertProjectAccess(actor, projectId, [
-      "admin",
-      PROJECT_ROLES.PROJECT_MANAGER,
-    ]);
+    await this.assertProjectAccess(actor, projectId, ["admin"]);
 
     const membership = await ProjectMemberRepository.findByProjectAndUser(
       projectId,
@@ -307,6 +439,10 @@ class ProjectService {
 
     if (!membership) {
       throw new ApiError(404, "User is not a member of this project");
+    }
+
+    if (membership.projectRole === PROJECT_ROLES.PROJECT_MANAGER) {
+      throw new ApiError(400, "Project manager cannot be promoted to team lead");
     }
 
     const existingLead = await ProjectMemberRepository.findTeamLead(projectId);
@@ -326,10 +462,7 @@ class ProjectService {
   }
 
   async demoteTeamLead(actor, projectId, userId) {
-    await this.assertProjectAccess(actor, projectId, [
-      "admin",
-      PROJECT_ROLES.PROJECT_MANAGER,
-    ]);
+    await this.assertProjectAccess(actor, projectId, ["admin"]);
 
     const membership = await ProjectMemberRepository.findByProjectAndUser(
       projectId,

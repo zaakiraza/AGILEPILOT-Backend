@@ -7,7 +7,7 @@ const userSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: "Organization",
       required: function () {
-        return [ORG_ROLES.PROJECT_MANAGER, ORG_ROLES.TEAM_MEMBER].includes(
+        return [ORG_ROLES.MEMBER, "teamMember", "projectManager"].includes(
           this.orgRole
         );
       },

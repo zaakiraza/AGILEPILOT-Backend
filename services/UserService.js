@@ -31,28 +31,8 @@ class UserService {
     }
   }
 
-  assertCanCreateRole(actor, orgRole) {
-    if (actor.orgRole === ORG_ROLES.SUPER_ADMIN) {
-      if (orgRole !== ORG_ROLES.ADMIN) {
-        throw new ApiError(403, "Super admin can only create admin users");
-      }
-      return;
-    }
-
-    if (actor.orgRole === ORG_ROLES.ADMIN) {
-      if (orgRole === ORG_ROLES.SUPER_ADMIN || orgRole === ORG_ROLES.ADMIN) {
-        throw new ApiError(403, "Admin cannot create super admin or admin users");
-      }
-      return;
-    }
-
-    throw new ApiError(403, "You do not have permission to create users");
-  }
-
   async createUser(actor, data) {
-    const { name, email, password, orgRole } = data;
-
-    this.assertCanCreateRole(actor, orgRole);
+    const { name, email, password } = data;
 
     const emailTaken = await UserRepository.emailExists(email);
 
@@ -81,6 +61,10 @@ class UserService {
       return { ...user.toSafeObject(), ...verification };
     }
 
+    if (actor.orgRole !== ORG_ROLES.ADMIN) {
+      throw new ApiError(403, "You do not have permission to create users");
+    }
+
     this.assertAdminHasOrganization(actor);
 
     const organization = await OrganizationRepository.findById(actor.organizationId);
@@ -93,7 +77,7 @@ class UserService {
       name,
       email,
       passwordHash,
-      orgRole,
+      orgRole: ORG_ROLES.MEMBER,
       organizationId: actor.organizationId,
       isEmailVerified: false,
     });
@@ -143,10 +127,6 @@ class UserService {
     }
 
     this.assertOrgAccess(actor, user);
-
-    if (updates.orgRole) {
-      this.assertCanCreateRole(actor, updates.orgRole);
-    }
 
     if (updates.email && updates.email !== user.email) {
       const emailTaken = await UserRepository.emailExists(updates.email);

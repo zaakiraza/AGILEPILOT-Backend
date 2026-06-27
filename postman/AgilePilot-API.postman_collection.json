@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "agilepilot-api-v1",
     "name": "AgilePilot API",
-    "description": "AgilePilot backend API collection.\n\n## Flow\n1. Seed superAdmin (`npm run seed`)\n2. superAdmin creates **admin user only** → OTP emailed\n3. **Verify email** with OTP before login\n4. Admin logs in and **creates organization**\n5. Admin creates PM / teamMember users (each needs OTP verification)\n6. Admin creates project and assigns PM\n7. PM adds team members and promotes team lead\n\n## Email OTP\nNew users created via `POST /api/users` must verify email before login.\nSet `DEV_EXPOSE_OTP=true` on the server to return `devOtp` in the create-user response (testing only).\nWithout SMTP, OTP is logged to the server console.\n\n## Auth\nProtected routes use `Authorization: Bearer {{token}}`.\nLogin requests auto-save `token`, `userId`, and `organizationId`.\n\n## Response format\n**Success:** `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n**Error:** `{ \"status\": \"error\", \"message\": \"...\", \"error\": ... }`",
+    "description": "AgilePilot backend API collection.\n\n## Flow\n1. Seed superAdmin (`npm run seed`)\n2. superAdmin creates **admin user only** → OTP emailed\n3. **Verify email** with OTP before login\n4. Admin logs in and **creates organization**\n5. Admin creates PM / teamMember users (each needs OTP verification)\n6. Admin creates project and assigns PM\n7. Admin adds team members and promotes team lead\n\n## Email OTP\nNew users created via `POST /api/users` must verify email before login.\nSet `DEV_EXPOSE_OTP=true` on the server to return `devOtp` in the create-user response (testing only).\nWithout SMTP, OTP is logged to the server console.\n\n## Auth\nProtected routes use `Authorization: Bearer {{token}}`.\nLogin requests auto-save `token`, `userId`, and `organizationId`.\n\n## Response format\n**Success:** `{ \"status\": \"success\", \"message\": \"...\", \"data\": { ... } }`\n**Error:** `{ \"status\": \"error\", \"message\": \"...\", \"error\": ... }`",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -915,7 +915,7 @@
               "raw": "{\n  \"userId\": \"{{teamMemberUserId}}\"\n}"
             },
             "url": "{{baseUrl}}/api/projects/{{projectId}}/members",
-            "description": "**Access:** `admin`, `projectManager`. Adds user as `teamMember`."
+            "description": "**Access:** `admin` only. Adds user as `teamMember`."
           }
         },
         {
@@ -930,7 +930,7 @@
           "request": {
             "method": "PATCH",
             "url": "{{baseUrl}}/api/projects/{{projectId}}/members/{{teamMemberUserId}}/promote-lead",
-            "description": "**Access:** `admin`, `projectManager`. Only one team lead per project."
+            "description": "**Access:** `admin` only. Only one team lead per project."
           }
         },
         {

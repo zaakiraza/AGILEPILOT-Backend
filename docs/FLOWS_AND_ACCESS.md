@@ -29,31 +29,31 @@ This document describes every major workflow in the AgilePilot backend, who can 
 
 ## 1. Role model
 
-### Organization roles (`user.orgRole`)
+### Organization account types (`user.orgRole`)
 
 | Role | Purpose |
 |------|---------|
-| `superAdmin` | Platform owner. Seeded once. Creates `admin` users only. Lists all organizations and users. **Not linked to any organization.** **No project access.** |
-| `admin` | Organization owner. Creates their org, manages users, creates/deletes projects, full org visibility. |
-| `projectManager` | Account type. Assigned as PM on one or more projects by admin. Manages project work, members, budget, estimates. |
-| `teamMember` | Account type. Added to projects as `teamMember` or promoted to `teamLead`. Works on assigned tasks. |
+| `superAdmin` | Platform owner. Seeded once. Creates `admin` users only. **No project access.** |
+| `admin` | Organization owner. Creates org, users, projects. Full org visibility. |
+| `member` | Default for users created by admin. **No project role at account level.** |
 
-### Project roles (per project)
+> Project roles (`projectManager`, `teamLead`, `teamMember`) live on **`ProjectMember`** only — not on the user account.
+
+### Project roles (`ProjectMember.projectRole`)
 
 | Role | How assigned | Notes |
 |------|--------------|-------|
-| `projectManager` | Set on `project.projectManagerId` by admin | Exactly one PM per project. Same user can be PM on multiple projects. |
-| `teamLead` | Promoted from `teamMember` by admin or PM | **Max 1 team lead per project.** |
-| `teamMember` | Added to project by admin or PM | Default role when a member is added. |
+| `projectManager` | Admin on create/change project | Exactly one per project. Same user can be PM on multiple projects. |
+| `teamLead` | Admin promotes a `teamMember` | Max 1 per project. |
+| `teamMember` | Admin adds user to project | Default when added as member. |
 
 ### Effective project access
 
 When a user opens a project-scoped endpoint, the service resolves their **effective project role**:
 
 1. **Admin** (same org as project) → treated as `"admin"`
-2. **Assigned PM** on that project → `"projectManager"`
-3. **Project member** → `teamLead` or `teamMember` from membership record
-4. Otherwise → **403 Forbidden**
+2. **`ProjectMember` record** → `projectManager`, `teamLead`, or `teamMember`
+3. Otherwise → **403 Forbidden**
 
 > **Note:** `superAdmin` bypasses the organization check but is never PM or a member, so they **cannot access project endpoints**.
 
@@ -70,10 +70,10 @@ Step 3  POST /api/users                 → superAdmin creates admin (OTP sent)
 Step 3b POST /api/auth/verify-email     → admin verifies email with OTP
 Step 4  POST /api/auth/login            → admin logs in
 Step 5  POST /api/organizations         → admin creates organization (linked to admin)
-Step 6  POST /api/users                 → admin creates projectManager + teamMember (OTP each)
-Step 6b POST /api/auth/verify-email     → verify PM and teamMember emails
-Step 7  POST /api/projects              → admin creates project with projectManagerId
-Step 8  POST /api/projects/:id/members  → admin/PM adds team members
+Step 6  POST /api/users                 → admin creates member users (OTP each)
+Step 6b POST /api/auth/verify-email     → verify each user email
+Step 7  POST /api/projects              → admin creates project; PM stored as ProjectMember
+Step 8  POST /api/projects/:id/members  → admin adds team members
 Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 ```
 
@@ -83,7 +83,7 @@ Step 9+ Milestones → Tasks → Estimates → Budget → Reports → Export
 |-------|------------------------------|
 | New user (admin, PM, teamMember) | Must verify email via OTP before login |
 | `admin` | Must create organization before managing users or projects |
-| `projectManager` | Must be assigned to a project by admin |
+| `projectManager` | Must be assigned as PM on a project by admin |
 | `teamMember` | Must be added as a project member |
 | Budget expenses | Budget must be set (`PUT /budget`) before adding expenses |
 
@@ -114,7 +114,7 @@ Applies when **superAdmin** creates an `admin`, or **admin** creates a `projectM
 
 **Exceptions:** Seeded `superAdmin` is created with `isEmailVerified: true` (no OTP).
 
-**PM note:** Project managers do not create user accounts in v1. They add existing org users to projects via `POST /api/projects/:id/members`. OTP applies only at account creation time.
+**PM note:** Project managers do not create user accounts or manage project membership in v1. Admin creates org users and adds them to projects. OTP applies only at account creation time.
 
 ### Flow: Login
 
@@ -266,14 +266,14 @@ Applies when **superAdmin** creates an `admin`, or **admin** creates a `projectM
 | Method | Path | Effective project roles |
 |--------|------|-------------------------|
 | `GET` | `/api/projects/:projectId/members` | `admin`, `projectManager`, `teamLead` |
-| `POST` | `/api/projects/:projectId/members` | `admin`, `projectManager` |
-| `DELETE` | `/api/projects/:projectId/members/:userId` | `admin`, `projectManager` |
-| `PATCH` | `.../members/:userId/promote-lead` | `admin`, `projectManager` |
-| `PATCH` | `.../members/:userId/demote-lead` | `admin`, `projectManager` |
+| `POST` | `/api/projects/:projectId/members` | `admin` |
+| `DELETE` | `/api/projects/:projectId/members/:userId` | `admin` |
+| `PATCH` | `.../members/:userId/promote-lead` | `admin` |
+| `PATCH` | `.../members/:userId/demote-lead` | `admin` |
 
 ### Flow: Add member
 
-1. Admin or PM adds a user by `userId`.
+1. Admin adds a user by `userId`.
 2. User must be active and in the same organization.
 3. User cannot already be the project's PM.
 4. User cannot already be a member.
@@ -281,12 +281,12 @@ Applies when **superAdmin** creates an `admin`, or **admin** creates a `projectM
 
 ### Flow: Promote to team lead
 
-1. Admin or PM promotes an existing `teamMember`.
+1. Admin promotes an existing `teamMember`.
 2. **Only one `teamLead` per project.** Demote existing lead first if needed.
 
 ### Flow: Demote team lead
 
-1. Admin or PM demotes `teamLead` back to `teamMember`.
+1. Admin demotes `teamLead` back to `teamMember`.
 
 ### Who can view members
 
@@ -513,7 +513,7 @@ Returns:
 | Create/delete project | ✓ | ✗ | ✗ | ✗ | ✗ |
 | Update project | ✓ | ✓ | ✗ | ✗ | ✗ |
 | Change PM | ✓ | ✗ | ✗ | ✗ | ✗ |
-| Manage members | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Manage members | ✓ | ✗ | ✗ | ✗ | ✗ |
 | List members | ✓ | ✓ | ✓ | ✗ | ✗ |
 | Manage milestones | ✓ | ✓ | ✓ | ✗ | ✗ |
 | View milestones | ✓ | ✓ | ✓ | ✓ | ✗ |

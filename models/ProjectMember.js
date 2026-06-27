@@ -15,7 +15,11 @@ const projectMemberSchema = new mongoose.Schema(
     },
     projectRole: {
       type: String,
-      enum: [PROJECT_ROLES.TEAM_LEAD, PROJECT_ROLES.TEAM_MEMBER],
+      enum: [
+        PROJECT_ROLES.PROJECT_MANAGER,
+        PROJECT_ROLES.TEAM_LEAD,
+        PROJECT_ROLES.TEAM_MEMBER,
+      ],
       required: true,
     },
     joinedAt: {
@@ -32,6 +36,13 @@ projectMemberSchema.index(
   {
     unique: true,
     partialFilterExpression: { projectRole: PROJECT_ROLES.TEAM_LEAD },
+  }
+);
+projectMemberSchema.index(
+  { projectId: 1, projectRole: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { projectRole: PROJECT_ROLES.PROJECT_MANAGER },
   }
 );
 

@@ -40,10 +40,11 @@ const projectSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    /** @deprecated Legacy field — PM is stored on ProjectMember. */
     projectManagerId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      default: null,
     },
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,

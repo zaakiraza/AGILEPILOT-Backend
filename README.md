@@ -200,9 +200,9 @@ npm run seed
   → create admin user → verify email (OTP)
   → admin login
   → create organization
-  → create projectManager + teamMember users → verify each email
-  → create project (assign PM)
-  → add members → milestones → tasks → estimates → budget → reports
+  → create teamMember users → verify each email
+  → create project (assign PM from org users)
+  → admin adds members → milestones → tasks → estimates → budget → reports
 ```
 
 Full role and permission details: **[docs/FLOWS_AND_ACCESS.md](./docs/FLOWS_AND_ACCESS.md)**
@@ -215,14 +215,13 @@ Full role and permission details: **[docs/FLOWS_AND_ACCESS.md](./docs/FLOWS_AND_
 |------|--------------|
 | `superAdmin` | Creates admins, lists orgs/users. No project access. |
 | `admin` | Owns org, manages users and projects. |
-| `projectManager` | Manages assigned projects. |
-| `teamMember` | Works on assigned tasks within projects. |
+| `member` | Org user account. Project roles assigned via `ProjectMember`. |
 
-### Project roles
+### Project roles (on `ProjectMember`)
 
 | Role | Notes |
 |------|-------|
-| `projectManager` | One per project (set by admin). |
+| `projectManager` | One per project (admin assigns on create/change). |
 | `teamLead` | Max one per project (promoted from member). |
 | `teamMember` | Default when added to a project. |
 

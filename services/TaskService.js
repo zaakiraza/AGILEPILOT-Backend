@@ -46,16 +46,12 @@ class TaskService {
       throw new ApiError(400, "Assignee must belong to the same organization");
     }
 
-    const isPm =
-      project.projectManagerId._id?.toString() === assigneeId ||
-      project.projectManagerId.toString() === assigneeId;
-
     const membership = await ProjectMemberRepository.findByProjectAndUser(
       projectId,
       assigneeId
     );
 
-    if (!isPm && !membership) {
+    if (!membership) {
       throw new ApiError(400, "Assignee must be a member of this project");
     }
 

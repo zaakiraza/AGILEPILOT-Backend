@@ -7,22 +7,15 @@ class ProjectRepository extends BaseRepository {
   }
 
   async findByIdAndOrg(id, organizationId) {
-    return Project.findOne({ _id: id, organizationId }).populate(
-      "projectManagerId",
-      "name email orgRole"
-    );
+    return Project.findOne({ _id: id, organizationId });
   }
 
   async findByOrg(organizationId, filter = {}) {
-    return Project.find({ organizationId, ...filter })
-      .populate("projectManagerId", "name email orgRole")
-      .sort({ createdAt: -1 });
+    return Project.find({ organizationId, ...filter }).sort({ createdAt: -1 });
   }
 
   async findByIds(projectIds) {
-    return Project.find({ _id: { $in: projectIds } })
-      .populate("projectManagerId", "name email orgRole")
-      .sort({ createdAt: -1 });
+    return Project.find({ _id: { $in: projectIds } }).sort({ createdAt: -1 });
   }
 }
 
