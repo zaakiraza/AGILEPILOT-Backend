@@ -5,6 +5,16 @@ import UserRepository from "../repositories/UserRepository.js";
 import ApiError from "../utils/ApiError.js";
 
 class ProjectService {
+  isSuperAdmin(actor) {
+    return actor.orgRole === ORG_ROLES.SUPER_ADMIN;
+  }
+
+  hasOrgAdminAccess(actor) {
+    return (
+      this.isSuperAdmin(actor) || actor.orgRole === ORG_ROLES.ADMIN
+    );
+  }
+
   assertAdminHasOrganization(actor) {
     if (actor.orgRole === ORG_ROLES.ADMIN && !actor.organizationId) {
       throw new ApiError(400, "Create your organization before managing projects");
@@ -74,6 +84,10 @@ class ProjectService {
   }
 
   async resolveProjectRole(actor, project) {
+    if (this.isSuperAdmin(actor)) {
+      return "admin";
+    }
+
     if (actor.orgRole === ORG_ROLES.ADMIN) {
       if (
         actor.organizationId?.toString() === project.organizationId.toString()
@@ -210,11 +224,19 @@ class ProjectService {
   }
 
   async createProject(actor, data) {
-    if (actor.orgRole !== ORG_ROLES.ADMIN) {
+    let organizationId;
+
+    if (this.isSuperAdmin(actor)) {
+      if (!data.organizationId) {
+        throw new ApiError(400, "organizationId is required when creating a project as super admin");
+      }
+      organizationId = data.organizationId;
+    } else if (actor.orgRole === ORG_ROLES.ADMIN) {
+      this.assertAdminHasOrganization(actor);
+      organizationId = actor.organizationId;
+    } else {
       throw new ApiError(403, "Only admin can create projects");
     }
-
-    this.assertAdminHasOrganization(actor);
 
     const {
       name,
@@ -226,10 +248,10 @@ class ProjectService {
       projectManagerId,
     } = data;
 
-    await this.validateAssignableUser(actor.organizationId, projectManagerId);
+    await this.validateAssignableUser(organizationId, projectManagerId);
 
     const project = await ProjectRepository.create({
-      organizationId: actor.organizationId,
+      organizationId,
       name,
       description,
       status,
@@ -249,6 +271,11 @@ class ProjectService {
   }
 
   async listProjects(actor) {
+    if (this.isSuperAdmin(actor)) {
+      const projects = await ProjectRepository.findAll();
+      return this.attachProjectManagers(projects);
+    }
+
     if (actor.orgRole === ORG_ROLES.ADMIN) {
       this.assertAdminHasOrganization(actor);
       const projects = await ProjectRepository.findByOrg(actor.organizationId);
@@ -308,16 +335,21 @@ class ProjectService {
   }
 
   async changeProjectManager(actor, projectId, projectManagerId) {
-    if (actor.orgRole !== ORG_ROLES.ADMIN) {
+    if (!this.hasOrgAdminAccess(actor)) {
       throw new ApiError(403, "Only admin can change the project manager");
     }
 
-    this.assertAdminHasOrganization(actor);
+    if (actor.orgRole === ORG_ROLES.ADMIN) {
+      this.assertAdminHasOrganization(actor);
+    }
 
-    const project = await ProjectRepository.findByIdAndOrg(
-      projectId,
-      actor.organizationId
-    );
+    const project =
+      actor.orgRole === ORG_ROLES.ADMIN
+        ? await ProjectRepository.findByIdAndOrg(
+            projectId,
+            actor.organizationId
+          )
+        : await ProjectRepository.findById(projectId);
 
     if (!project) {
       throw new ApiError(404, "Project not found");
@@ -325,22 +357,27 @@ class ProjectService {
 
     return this.assignProjectManager(
       projectId,
-      actor.organizationId,
+      project.organizationId,
       projectManagerId
     );
   }
 
   async deleteProject(actor, projectId) {
-    if (actor.orgRole !== ORG_ROLES.ADMIN) {
+    if (!this.hasOrgAdminAccess(actor)) {
       throw new ApiError(403, "Only admin can delete projects");
     }
 
-    this.assertAdminHasOrganization(actor);
+    if (actor.orgRole === ORG_ROLES.ADMIN) {
+      this.assertAdminHasOrganization(actor);
+    }
 
-    const project = await ProjectRepository.findByIdAndOrg(
-      projectId,
-      actor.organizationId
-    );
+    const project =
+      actor.orgRole === ORG_ROLES.ADMIN
+        ? await ProjectRepository.findByIdAndOrg(
+            projectId,
+            actor.organizationId
+          )
+        : await ProjectRepository.findById(projectId);
 
     if (!project) {
       throw new ApiError(404, "Project not found");

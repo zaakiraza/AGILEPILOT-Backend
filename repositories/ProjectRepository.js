@@ -17,6 +17,10 @@ class ProjectRepository extends BaseRepository {
   async findByIds(projectIds) {
     return Project.find({ _id: { $in: projectIds } }).sort({ createdAt: -1 });
   }
+
+  async findAll() {
+    return Project.find().sort({ createdAt: -1 });
+  }
 }
 
 export default new ProjectRepository();

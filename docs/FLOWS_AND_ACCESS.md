@@ -33,7 +33,7 @@ This document describes every major workflow in the AgilePilot backend, who can 
 
 | Role | Purpose |
 |------|---------|
-| `superAdmin` | Platform owner. Seeded once. Creates `admin` users only. **No project access.** |
+| `superAdmin` | Platform owner. Seeded once. Creates `admin` users. **Full access** to all organizations, users, and projects. |
 | `admin` | Organization owner. Creates org, users, projects. Full org visibility. |
 | `member` | Default for users created by admin. **No project role at account level.** |
 
@@ -51,9 +51,10 @@ This document describes every major workflow in the AgilePilot backend, who can 
 
 When a user opens a project-scoped endpoint, the service resolves their **effective project role**:
 
-1. **Admin** (same org as project) → treated as `"admin"`
-2. **`ProjectMember` record** → `projectManager`, `teamLead`, or `teamMember`
-3. Otherwise → **403 Forbidden**
+1. **Super admin** → treated as `"admin"` on any project
+2. **Admin** (same org as project) → treated as `"admin"`
+3. **`ProjectMember` record** → `projectManager`, `teamLead`, or `teamMember`
+4. Otherwise → **403 Forbidden**
 
 > **Note:** `superAdmin` bypasses the organization check but is never PM or a member, so they **cannot access project endpoints**.
 

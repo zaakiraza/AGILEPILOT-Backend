@@ -11,6 +11,7 @@ export const createProjectSchema = z.object({
     startDate: z.coerce.date().optional(),
     endDate: z.coerce.date().optional(),
     projectManagerId: objectId,
+    organizationId: objectId.optional(),
   }),
 });
 

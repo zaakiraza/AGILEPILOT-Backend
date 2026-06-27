@@ -213,7 +213,7 @@ Full role and permission details: **[docs/FLOWS_AND_ACCESS.md](./docs/FLOWS_AND_
 
 | Role | Capabilities |
 |------|--------------|
-| `superAdmin` | Creates admins, lists orgs/users. No project access. |
+| `superAdmin` | Full platform access: all orgs, users, and projects (admin-level on every project). |
 | `admin` | Owns org, manages users and projects. |
 | `member` | Org user account. Project roles assigned via `ProjectMember`. |
 
