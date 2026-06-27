@@ -9,7 +9,10 @@ import { isMailConfigured } from "./utils/mailer.js";
 dotenv.config();
 const app = express();
 
-app.use(cors());
+app.use(cors({
+  origin: ["https://agilepilot-frontend.vercel.app", "http://localhost:5173"],
+  credentials: true,
+}));
 app.use(express.json());
 
 if (process.env.NODE_ENV !== "production") {
